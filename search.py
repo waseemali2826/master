@@ -68,7 +68,7 @@ def find_company_items(query, top_k=5):
 
     for score, idx in zip(scores[0], ids[0]):
 
-        item = master[idx].copy()
+        item = master.iloc[idx].to_dict()
 
         item["similarity"] = float(score)
 
