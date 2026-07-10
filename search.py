@@ -14,47 +14,53 @@ master = None
 def load_resources():
     global repo_path, model, index, master
 
-    if model is None:
-        print("Loading resources...")
+    if model is not None:
+        return
 
-        # Download repository (cached after first run)
-        repo_path = snapshot_download(
-            repo_id="waseem11/master",
-            repo_type="model"
-        )
+    print("Loading resources...")
 
-        # Load Sentence Transformer model
-        model = SentenceTransformer(
-            os.path.join(repo_path, "all-MiniLM-L6-v2"),
-            device="cpu"
-        )
+    # Download Hugging Face repository
+    repo_path = snapshot_download(
+        repo_id="waseem11/master",
+        repo_type="model"
+    )
 
-        # Load FAISS index
-        index = faiss.read_index(
-            os.path.join(repo_path, "faiss.index")
-        )
+    # Load SentenceTransformer model
+    model = SentenceTransformer(
+        os.path.join(repo_path, "all-MiniLM-L6-v2"),
+        device="cpu"
+    )
 
-        # Load optimized metadata DataFrame
-        with open(
-            os.path.join(repo_path, "master.pkl"),
-            "rb"
-        ) as f:
-            master = pickle.load(f)
+    # Load COMPRESSED FAISS index
+    index = faiss.read_index(
+        os.path.join(repo_path, "faiss_compressed.index")
+    )
 
-        print("Resources loaded successfully")
+    # IMPORTANT for IVF indexes
+    index.nprobe = 20
+
+    # Load metadata
+    with open(
+        os.path.join(repo_path, "master.pkl"),
+        "rb"
+    ) as f:
+        master = pickle.load(f)
+
+    print("Resources loaded successfully")
+    print("Total vectors:", index.ntotal)
 
 
 def find_company_items(query, top_k=5):
     load_resources()
 
-    # Create query embedding
+    # Generate query embedding
     embedding = model.encode(
         [query],
         normalize_embeddings=True,
         convert_to_numpy=True
     ).astype("float32")
 
-    # Search in FAISS
+    # Search
     scores, ids = index.search(
         embedding,
         top_k
@@ -68,9 +74,8 @@ def find_company_items(query, top_k=5):
             continue
 
         item = master.iloc[idx].to_dict()
-        item["similarity"] = float(score)
+        item["similarity"] = round(float(score), 4)
 
         results.append(item)
 
     return results
-    
